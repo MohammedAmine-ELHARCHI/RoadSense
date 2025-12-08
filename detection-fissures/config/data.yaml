@@ -1,0 +1,40 @@
+# YOLOv8 Dataset Configuration for Road Defect Detection
+# 
+# Instructions:
+# 1. Download datasets (RDD2022, Crack500, etc.)
+# 2. Organize them in the following structure:
+#    data/
+#    ├── train/
+#    │   ├── images/
+#    │   └── labels/
+#    ├── val/
+#    │   ├── images/
+#    │   └── labels/
+#    └── test/
+#        ├── images/
+#        └── labels/
+#
+# 3. Labels should be in YOLO format: class x_center y_center width height (normalized 0-1)
+
+# Dataset root path
+path: ./data
+
+# Train/Val/Test splits
+train: train/images
+val: val/images
+test: test/images
+
+# Number of classes
+nc: 4
+
+# Class names
+names:
+  0: crack
+  1: pothole
+  2: alligator_crack
+  3: patch
+
+# Download datasets (optional - for automatic download)
+# download: |
+#   import os
+#   # Add your dataset download logic here

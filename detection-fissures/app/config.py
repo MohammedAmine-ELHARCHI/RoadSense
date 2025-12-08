@@ -1,0 +1,43 @@
+from pydantic_settings import BaseSettings
+from typing import Optional
+import os
+
+class Settings(BaseSettings):
+    # Environment
+    ENVIRONMENT: str = "development"
+    
+    # PostgreSQL
+    POSTGRES_HOST: str = "postgres"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "roadsense"
+    POSTGRES_USER: str = "roadsense_user"
+    POSTGRES_PASSWORD: str = "roadsense_password_2025"
+    
+    @property
+    def DATABASE_URL(self) -> str:
+        return f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+    
+    # MinIO
+    MINIO_ENDPOINT: str = "minio:9000"
+    MINIO_ACCESS_KEY: str = "roadsense_access"
+    MINIO_SECRET_KEY: str = "roadsense_secret_key_2025"
+    MINIO_SECURE: bool = False
+    
+    # Model Configuration
+    YOLO_MODEL_PATH: str = "models/yolo/best.pt"
+    MASKRCNN_MODEL_PATH: str = "models/maskrcnn/model_final.pth"
+    CONFIDENCE_THRESHOLD: float = 0.5
+    GPU_DEVICE: int = 0
+    
+    # Service Configuration
+    MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
+    TEMP_DIR: str = "temp"
+    
+    # Model Classes
+    MODEL_CLASSES: list = ["crack", "pothole", "alligator_crack", "patch"]
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()

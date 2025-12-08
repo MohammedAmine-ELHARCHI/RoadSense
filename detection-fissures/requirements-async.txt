@@ -1,0 +1,2 @@
+# asyncpg is required for SQLAlchemy async PostgreSQL support
+asyncpg==0.29.0

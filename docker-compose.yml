@@ -1,0 +1,212 @@
+services:
+  # PostgreSQL with PostGIS
+  postgres:
+    image: postgis/postgis:15-3.3
+    container_name: roadsense-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infrastructure/postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - roadsense-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: roadsense-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - roadsense-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO Client - Create buckets
+  minio-client:
+    image: minio/mc:latest
+    container_name: roadsense-minio-client
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      /usr/bin/mc config host add roadsense http://minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY};
+      /usr/bin/mc mb roadsense/raw-videos --ignore-existing;
+      /usr/bin/mc mb roadsense/extracted-frames --ignore-existing;
+      /usr/bin/mc mb roadsense/annotated-images --ignore-existing;
+      /usr/bin/mc mb roadsense/segmentation-masks --ignore-existing;
+      /usr/bin/mc mb roadsense/metadata --ignore-existing;
+      /usr/bin/mc mb roadsense/roadsense-videos --ignore-existing;
+      /usr/bin/mc mb roadsense/roadsense-frames --ignore-existing;
+      exit 0;
+      "
+    networks:
+      - roadsense-network
+
+  # Detection Service (ML/DL)
+  detection-service:
+    build:
+      context: ./detection-fissures
+      dockerfile: Dockerfile
+    container_name: roadsense-detection
+    environment:
+      - POSTGRES_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - GPU_DEVICE=${GPU_DEVICE}
+    ports:
+      - "${DETECTION_SERVICE_PORT}:8001"
+    volumes:
+      - ./detection-fissures/models:/app/models
+      - ./detection-fissures/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - roadsense-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # Severity Scoring Service
+  severity-service:
+    build:
+      context: ./score-gravite
+      dockerfile: Dockerfile
+    container_name: roadsense-severity
+    environment:
+      - POSTGRES_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - XGBOOST_MODEL_PATH=${XGBOOST_MODEL_PATH}
+    ports:
+      - "${SEVERITY_SERVICE_PORT}:8002"
+    volumes:
+      - ./score-gravite/models:/app/models
+      - ./score-gravite/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - roadsense-network
+
+  # Ingestion Video Service
+  ingestion-service:
+    build:
+      context: ./ingestion-video
+      dockerfile: Dockerfile
+    container_name: roadsense-ingestion
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - REDIS_HOST=redis
+      - DETECTION_SERVICE_URL=http://detection-service:8001
+    ports:
+      - "${INGESTION_SERVICE_PORT}:8003"
+    volumes:
+      - ./ingestion-video/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - roadsense-network
+
+  # GeoRef Service
+  georef-service:
+    build:
+      context: ./georef-service
+      dockerfile: Dockerfile
+    container_name: roadsense-georef
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_HOST=redis
+      - DETECTION_SERVICE_URL=http://detection-service:8001
+      - SEVERITY_SERVICE_URL=http://severity-service:8002
+      - INGESTION_SERVICE_URL=http://ingestion-service:8003
+    ports:
+      - "8004:8004"
+    volumes:
+      - ./georef-service/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - roadsense-network
+
+  # OSRM (Map Matching)
+  osrm:
+    image: osrm/osrm-backend:latest
+    container_name: roadsense-osrm
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./infrastructure/osrm-data:/data
+    command: osrm-routed --algorithm mld /data/morocco-latest.osrm
+    networks:
+      - roadsense-network
+
+  # Redis (Optional - for caching)
+  redis:
+    image: redis:7-alpine
+    container_name: roadsense-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - roadsense-network
+
+  # Dashboard Frontend
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: roadsense-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - detection-service
+      - severity-service
+    networks:
+      - roadsense-network
+    environment:
+      - VITE_API_BASE=http://localhost
+
+volumes:
+  postgres-data:
+  minio-data:
+
+networks:
+  roadsense-network:
+    driver: bridge

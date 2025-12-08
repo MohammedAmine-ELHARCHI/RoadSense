@@ -1,0 +1,18 @@
+names:
+- D00
+- D10
+- D20
+- D40
+- D43
+- D44
+- D50
+nc: 7
+roboflow:
+  license: CC BY 4.0
+  project: road-defect-1kdhj
+  url: https://universe.roboflow.com/pd-vl3mk/road-defect-1kdhj/dataset/5
+  version: 5
+  workspace: pd-vl3mk
+test: ../test/images
+train: ../train/images
+val: ../valid/images
