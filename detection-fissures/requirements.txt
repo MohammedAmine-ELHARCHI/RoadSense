@@ -4,15 +4,11 @@ python-multipart==0.0.6
 pydantic==2.5.3
 pydantic-settings==2.1.0
 
-# ML/DL Libraries
-torch==2.1.2
-torchvision==0.16.2
-ultralytics==8.1.0
-# detectron2 - Install separately: python -m pip install 'git+https://github.com/facebookresearch/detectron2.git'
+# ML/DL Libraries (tensorflow already in base image)
+protobuf==3.20.3
 
 # Computer Vision
-opencv-python==4.9.0.80
-opencv-contrib-python==4.9.0.80
+opencv-python-headless==4.9.0.80
 pillow==10.2.0
 numpy==1.24.4
 

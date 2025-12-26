@@ -24,17 +24,24 @@ class Settings(BaseSettings):
     MINIO_SECURE: bool = False
     
     # Model Configuration
-    YOLO_MODEL_PATH: str = "models/yolo/best.pt"
-    MASKRCNN_MODEL_PATH: str = "models/maskrcnn/model_final.pth"
+    TF_MODEL_PATH: str = "models/frozen_inference_graph_mobilenet.pb"
     CONFIDENCE_THRESHOLD: float = 0.5
-    GPU_DEVICE: int = 0
     
     # Service Configuration
     MAX_UPLOAD_SIZE: int = 10 * 1024 * 1024  # 10MB
     TEMP_DIR: str = "temp"
     
-    # Model Classes
-    MODEL_CLASSES: list = ["crack", "pothole", "alligator_crack", "patch"]
+    # Model Classes (TensorFlow model - 8 damage types)
+    MODEL_CLASSES: list = [
+        "D00 - Longitudinal Crack",
+        "D01 - Transverse Crack", 
+        "D10 - Alligator Crack",
+        "D11 - Pothole",
+        "D20 - Bleeding",
+        "D40 - Rutting",
+        "D43 - Cross Walk Blur",
+        "D44 - White Line Blur"
+    ]
     
     class Config:
         env_file = ".env"

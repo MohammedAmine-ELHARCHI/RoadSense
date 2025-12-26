@@ -63,7 +63,7 @@ services:
     networks:
       - roadsense-network
 
-  # Detection Service (ML/DL)
+  # Detection Service (TensorFlow MobileNet)
   detection-service:
     build:
       context: ./detection-fissures
@@ -74,7 +74,6 @@ services:
       - MINIO_ENDPOINT=${MINIO_ENDPOINT}
       - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
       - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
-      - GPU_DEVICE=${GPU_DEVICE}
     ports:
       - "${DETECTION_SERVICE_PORT}:8001"
     volumes:
@@ -87,13 +86,6 @@ services:
         condition: service_healthy
     networks:
       - roadsense-network
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
 
   # Severity Scoring Service
   severity-service:
@@ -158,6 +150,53 @@ services:
       - "8004:8004"
     volumes:
       - ./georef-service/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - roadsense-network
+
+  # Priorisation Service
+  priorisation-service:
+    build:
+      context: ./priorisation-service
+      dockerfile: Dockerfile
+    container_name: roadsense-priorisation
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_HOST=redis
+      - SEVERITY_SERVICE_URL=http://severity-service:8002
+      - GEOREF_SERVICE_URL=http://georef-service:8004
+    ports:
+      - "8005:8005"
+    volumes:
+      - ./priorisation-service/app:/app/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - roadsense-network
+
+  # ExportSIG Service
+  export-sig-service:
+    build:
+      context: ./export-sig-service
+      dockerfile: Dockerfile
+    container_name: roadsense-export-sig
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_HOST=redis
+      - GEOREF_SERVICE_URL=http://georef-service:8004
+      - SEVERITY_SERVICE_URL=http://severity-service:8002
+    ports:
+      - "8006:8006"
+    volumes:
+      - ./export-sig-service/app:/app/app
+      - ./export-sig-service/exports:/app/exports
     depends_on:
       postgres:
         condition: service_healthy

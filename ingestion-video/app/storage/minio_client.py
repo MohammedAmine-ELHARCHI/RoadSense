@@ -88,6 +88,18 @@ class MinIOStorage:
             logger.error(f"Error downloading video {object_name}: {e}")
             raise
     
+    async def get_object(self, bucket: str, object_name: str) -> bytes:
+        """Get object from MinIO bucket"""
+        try:
+            response = self.client.get_object(bucket, object_name)
+            data = response.read()
+            response.close()
+            response.release_conn()
+            return data
+        except S3Error as e:
+            logger.error(f"Error getting object {bucket}/{object_name}: {e}")
+            raise
+    
     async def get_presigned_url(self, bucket: str, object_name: str, expires_seconds: int = 3600) -> str:
         """Get presigned URL for object"""
         try:

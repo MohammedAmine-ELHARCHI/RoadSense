@@ -25,7 +25,7 @@ async def startup_event():
 @router.post("/detect", response_model=DetectionResponse)
 async def detect_defects(
     image: UploadFile = File(..., description="Image file to analyze"),
-    confidence_threshold: float = Form(0.5, ge=0.0, le=1.0),
+    confidence_threshold: float = Form(0.15, ge=0.0, le=1.0),
     return_masks: bool = Form(True),
     save_annotated: bool = Form(True),
     db: AsyncSession = Depends(get_db)

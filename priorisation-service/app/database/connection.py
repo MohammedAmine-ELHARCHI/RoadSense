@@ -27,7 +27,6 @@ async def connect():
     logger.info("Connecting to database...")
     try:
         async with engine.begin() as conn:
-            # Test connection
             await conn.execute(text("SELECT 1"))
         logger.info("✅ Database connected")
     except Exception as e:

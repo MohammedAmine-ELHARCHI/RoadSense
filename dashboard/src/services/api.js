@@ -16,6 +16,13 @@ const severityAPI = axios.create({
   },
 });
 
+const videoAPI = axios.create({
+  baseURL: `${API_BASE}/api/v1/video`,
+  headers: {
+    'Content-Type': 'multipart/form-data',
+  },
+});
+
 // Detection Service APIs
 export const detectDefects = async (imageFile) => {
   const formData = new FormData();
@@ -38,6 +45,34 @@ export const computeSeverity = async (features) => {
 
 export const getSeverityModelInfo = async () => {
   const response = await severityAPI.get('/model/info');
+  return response.data;
+};
+
+// Video Ingestion Service APIs
+export const uploadVideo = async (videoFile) => {
+  const formData = new FormData();
+  formData.append('video', videoFile);
+  
+  const response = await videoAPI.post('/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+export const getVideoStatus = async (videoId) => {
+  const response = await videoAPI.get(`/status/${videoId}`);
+  return response.data;
+};
+
+export const getVideoFrames = async (videoId) => {
+  const response = await videoAPI.get(`/${videoId}/frames`);
+  return response.data;
+};
+
+export const deleteVideo = async (videoId) => {
+  const response = await videoAPI.delete(`/${videoId}`);
   return response.data;
 };
 
@@ -82,5 +117,9 @@ export default {
   getDetectionModels,
   computeSeverity,
   getSeverityModelInfo,
+  uploadVideo,
+  getVideoStatus,
+  getVideoFrames,
+  deleteVideo,
   getMockDetections
 };
