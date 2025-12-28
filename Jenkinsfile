@@ -77,15 +77,17 @@ pipeline {
             steps {
                 script {
                     echo "📊 Running SonarQube Analysis..."
-                    // SonarQube scanner
-                    sh """
-                        sonar-scanner \
-                        -Dsonar.projectKey=roadsense \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=http://sonarqube:9000 \
-                        -Dsonar.login=\${SONAR_TOKEN} \
-                        -Dsonar.python.coverage.reportPaths=coverage.xml
-                    """
+                    // SonarQube scanner - use token from credentials
+                    withCredentials([string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                            sonar-scanner \
+                            -Dsonar.projectKey=roadsense \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=http://sonarqube:9090 \
+                            -Dsonar.token=\${SONAR_TOKEN} \
+                            -Dsonar.python.coverage.reportPaths=coverage.xml
+                        """
+                    }
                 }
             }
         }
