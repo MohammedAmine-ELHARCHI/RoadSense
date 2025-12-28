@@ -19,14 +19,14 @@ pipeline {
         }
         
         stage('Build Docker Images') {
-            parallel {
+            stages {
                 stage('Build Detection Service') {
                     steps {
                         dir('detection-fissures') {
                             script {
                                 echo "🔨 Building Detection Service..."
                                 sh """
-                                    docker build -t roadsense/detection-service:${IMAGE_TAG} .
+                                    docker build --memory=2g --memory-swap=2g -t roadsense/detection-service:${IMAGE_TAG} .
                                     docker tag roadsense/detection-service:${IMAGE_TAG} roadsense/detection-service:latest
                                 """
                             }
@@ -40,7 +40,7 @@ pipeline {
                             script {
                                 echo "🔨 Building Ingestion Service..."
                                 sh """
-                                    docker build -t roadsense/ingestion-service:${IMAGE_TAG} .
+                                    docker build --memory=2g --memory-swap=2g -t roadsense/ingestion-service:${IMAGE_TAG} .
                                     docker tag roadsense/ingestion-service:${IMAGE_TAG} roadsense/ingestion-service:latest
                                 """
                             }
@@ -54,7 +54,7 @@ pipeline {
                             script {
                                 echo "🔨 Building Dashboard..."
                                 sh """
-                                    docker build -t roadsense/dashboard:${IMAGE_TAG} .
+                                    docker build --memory=2g --memory-swap=2g -t roadsense/dashboard:${IMAGE_TAG} .
                                     docker tag roadsense/dashboard:${IMAGE_TAG} roadsense/dashboard:latest
                                 """
                             }
