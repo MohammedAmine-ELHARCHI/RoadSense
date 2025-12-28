@@ -50,7 +50,7 @@ pipeline {
                 
                 stage('Build Dashboard') {
                     steps {
-                        dir('OPTI_DASH') {
+                        dir('dashboard') {
                             script {
                                 echo "🔨 Building Dashboard..."
                                 sh """
