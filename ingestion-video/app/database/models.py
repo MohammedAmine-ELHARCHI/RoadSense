@@ -30,6 +30,7 @@ class Video(Base):
     
     # Storage
     storage_path = Column(String(500), nullable=False)
+    annotated_video_path = Column(String(500), nullable=True)
     
     # Processing status
     status = Column(Enum(ProcessingStatus), default=ProcessingStatus.PENDING)
@@ -64,6 +65,8 @@ class Frame(Base):
     
     # Detection status
     detection_completed = Column(Boolean, default=False)
+    defects_count = Column(Integer, default=0)
+    detection_data = Column(Text, nullable=True)  # JSON string of detections
     detection_id = Column(UUID(as_uuid=True), nullable=True)  # References detection results
     
     # Timestamps
