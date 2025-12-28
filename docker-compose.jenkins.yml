@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./:/workspace
+    environment:
+      - JENKINS_OPTS=--prefix=/jenkins
+      - JAVA_OPTS=-Xmx2048m -Xms512m -Djenkins.install.runSetupWizard=false
+    restart: unless-stopped
+    networks:
+      - jenkins
+      - roadsense-staging
+      - roadsense-prod
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/login || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  jenkins_home:
+    driver: local
+
+networks:
+  jenkins:
+    driver: bridge
+  roadsense-staging:
+    external: true
+  roadsense-prod:
+    external: true

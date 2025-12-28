@@ -1,0 +1,201 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database - Production
+  postgres:
+    image: postgres:15-alpine
+    container_name: roadsense-postgres-prod
+    environment:
+      POSTGRES_USER: roadsense_prod
+      POSTGRES_PASSWORD: ${POSTGRES_PROD_PASSWORD}
+      POSTGRES_DB: roadsense_prod
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./backups/postgres:/backups
+    networks:
+      - roadsense-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # Redis Cache - Production
+  redis:
+    image: redis:7-alpine
+    container_name: roadsense-redis-prod
+    command: redis-server --appendonly yes --requirepass ${REDIS_PROD_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_prod_data:/data
+    networks:
+      - roadsense-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+  # MinIO Object Storage - Production
+  minio:
+    image: minio/minio:latest
+    container_name: roadsense-minio-prod
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_PROD_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_PROD_PASSWORD}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_prod_data:/data
+    networks:
+      - roadsense-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+
+  # Detection Service - Production
+  detection-service:
+    image: roadsense/detection-service:${IMAGE_TAG:-latest}
+    container_name: roadsense-detection-prod
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://roadsense_prod:${POSTGRES_PROD_PASSWORD}@postgres:5432/roadsense_prod
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PROD_PASSWORD}
+      - MODEL_PATH=/app/models/frozen_inference_graph_mobilenet.pb
+      - CONFIDENCE_THRESHOLD=0.15
+      - LOG_LEVEL=INFO
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./detection-fissures/models:/app/models
+      - ./logs/detection:/app/logs
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - roadsense-prod
+    restart: always
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Ingestion Video Service - Production
+  ingestion-service:
+    image: roadsense/ingestion-service:${IMAGE_TAG:-latest}
+    container_name: roadsense-ingestion-prod
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_URL=postgresql://roadsense_prod:${POSTGRES_PROD_PASSWORD}@postgres:5432/roadsense_prod
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PROD_PASSWORD}
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_PROD_USER}
+      - MINIO_SECRET_KEY=${MINIO_PROD_PASSWORD}
+      - DETECTION_SERVICE_URL=http://detection-service:8001
+      - FRAME_EXTRACTION_FPS=2
+      - MAX_VIDEO_SIZE_MB=500
+      - LOG_LEVEL=INFO
+    ports:
+      - "8003:8003"
+    volumes:
+      - ./logs/ingestion:/app/logs
+    depends_on:
+      - postgres
+      - redis
+      - minio
+      - detection-service
+    networks:
+      - roadsense-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Dashboard - Production
+  dashboard:
+    image: roadsense/dashboard:${IMAGE_TAG:-latest}
+    container_name: roadsense-dashboard-prod
+    environment:
+      - ENVIRONMENT=production
+      - VITE_API_BASE_URL=https://api.roadsense.com
+      - VITE_VIDEO_API_URL=https://video.roadsense.com
+      - NODE_ENV=production
+    ports:
+      - "3000:3000"
+    depends_on:
+      - detection-service
+      - ingestion-service
+    networks:
+      - roadsense-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Nginx Reverse Proxy - Production
+  nginx:
+    image: nginx:alpine
+    container_name: roadsense-nginx-prod
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - dashboard
+      - detection-service
+      - ingestion-service
+    networks:
+      - roadsense-prod
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+networks:
+  roadsense-prod:
+    driver: bridge
+
+volumes:
+  postgres_prod_data:
+  redis_prod_data:
+  minio_prod_data:
