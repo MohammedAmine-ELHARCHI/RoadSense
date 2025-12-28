@@ -19,6 +19,9 @@ WORKDIR /app
 # Copy only non-tensorflow requirements
 COPY requirements.txt /tmp/requirements_all.txt
 
+# Upgrade pip first to avoid dependency resolution issues
+RUN pip3 install --upgrade pip setuptools wheel
+
 # Remove tensorflow line and install others
 RUN grep -v "tensorflow" /tmp/requirements_all.txt | grep -v "tf-keras" | grep -v "tensorflow-io" > /tmp/requirements.txt && \
     pip3 install --no-cache-dir -r /tmp/requirements.txt && \
